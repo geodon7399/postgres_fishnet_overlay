@@ -7,7 +7,7 @@ Determine percent overlap of telecom carrier coverage with 2010 census blocks at
 
 <b>The Problem</b>
 --------------------------
-There are approximately 20 shape files representing each carriers' coverage footprint. Each of them consist of numerous multipolygons with many of them being complex (containing 10000+ vertices) polygons which can be too process intensive for the resources when performing spatial operations on the data.
+There are approximately 20 shape files representing each carriers' coverage footprint per technology. Each of them consist of numerous multipolygons with many of them being complex (containing 10000+ vertices) polygons which can heavily impact computer  resources when performing spatial operations on the data.
 
 
 <b>The Solution</b>
@@ -21,29 +21,32 @@ Utilize Postgres/PostGIS to dice complex polygons and perform spatial overlays a
     - loaded 2010 census block data into database
     - created a parent block table and children block tables by state. This was done to increase performance by only pulling out census blocks needed for spatial operations.
     - load all carrier shape files using shp2psql function
-    - create "fishnet" function in Postgres. This function is used to dice large polygons into smaller chunks.
-* Python 2.7.3
-* Psycop2 2.4.3
+    - create "fishnet" function in Postgres. This function is used to dice large polygons into smaller chunks
+    - create a test_grid table to hold the results of st_intersection with coverage and fishnet
+* Python 2.7.4
+* Psycopg2 2.4.6
     - external library to send SQL statements to Postgres
 
 
 <b>What The Code Does</b>
 --------------------------
 * reads all coverages in the schema
-* uses st_npoints to determine if coverage polygons are large.
-* send large polygons to the fishnet function to dice them into smaller chunks
+* repairs self-intersecting geometries using st_buffer and converts geometries to multipolygon using st_multi
+* uses st_npoints to determine if coverage polygons are large
+* sends large polygons to the fishnet function to dice them into smaller chunks
 * inserts the chunks back into the coverage table and deletes the complex polygon
 * uses st_contains to determine 100% overlap
 * uses st_intersect to determine any interaction with census blocks
-* take the difference between the result of st_contains and st_intersects and perform st_intersection to get partially covered blocks
-* create and write results to a temp table
-* create final output table from temp table and group/sum percent overlap. This is done since there are multiple polygons overlapping the same census block
-* creates a log file of the processing status and elapsed time of certain parts and the entire process
+* takes the difference between the result of st_contains and st_intersects and perform st_intersection to get partially covered blocks
+* creates and write results to a temp table
+* creates final output table by aggregating data from the temp table and summing the percent overlap. This is done since there may be multiple polygons overlapping the same census block
+* creates a log file of the processing status and elapsed time of certain parts of the process and how long it takes to process each coverage
 * repeats process for each coverage table
 
 
 <b>What's Next</b>
 --------------------------
-* Modularize parts of the script. The fishnet, dicing, SQL statements sent to Postgres can be separated into their own modules to improve readability of the script.
-* Improve how multiple coverage polygons in partially covered census blocks are calculated. Current method is not entirely accurate but is close.
-
+* Modularize parts of the script. The fishnet, dicing, SQL statements sent to Postgres, etc can be separated into their own modules to improve readability of the process
+* Improve how multiple coverage polygons in partially covered census blocks are calculated. Current method may not be  entirely accurate (off by 1% or less) as more than one partially covered block could be covering the same area
+* Figure out a way to process the data in memory in place of creating temp tables and the test_grid table
+* Investigate ArcGIS's Dice toolbox. A vertex limit can be set on the data and the tool creates the right amount of chunks. The tool seemed faster than dicing in postgres
