@@ -11,7 +11,7 @@ where table_schema = 'swat'
 and table_name not like '_tmp_%'
 and table_name not like '_agg_%'
 and table_name not in ('grid','test_grid')
-and table_name = 'verizon_lte'
+and table_name = 'XXXX'
 order by table_name;"""
 
 #PUT PROVIDER TABLE NAMES INTO A LIST
