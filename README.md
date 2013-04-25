@@ -23,7 +23,7 @@ Utilize Postgres/PostGIS to dice complex polygons and perform spatial overlays a
     - created children block tables with check constraints by state. This was done to increase performance by only selecting census blocks needed for spatial operations.
     - load all carrier shape files into database
     - create "fishnet" function in Postgres. I grabbed this function from a thread on StackOverflow. This function is used to dice large polygons into smaller chunks
-    - create a test_grid table to hold the results of st_intersection with coverage and fishnet
+    - create a test_grid table to hold the results of st_intersection with coverage and fishnet. This needs to be sequenced
 * Python 2.7.4
 * Psycopg2 2.4.6
     - external library to send SQL statements to Postgres
