@@ -23,8 +23,7 @@ print providerTables
 for provider in providerTables:
     providerTime = time.time()
     
-    # CREATE A CSV FILE BY PROVIDER NAME TO SAVE DATA TO
-
+    #create a log file for each provider
     provider = provider[0]
     print 'Processing ' + provider + '...'
     f = open('C:/_GEO_DATA/SWAT/mosaic/test/block_' + provider + '.txt', 'w')
@@ -35,7 +34,6 @@ for provider in providerTables:
                     set geom = st_multi(st_buffer(geom,0))
                     where st_isvalid(geom) = false;""" % (provider)
     cur.execute(fixGeoms)
-    #fixGeoms = cur.fetchall()
     conn.commit() 
         
     #identify number of vertices in each coverage geometry
@@ -65,14 +63,13 @@ for provider in providerTables:
     totalTime = 0
     gidLargePoly = []
     
-    ########################################################DICING LARGE POLYS##################################################
+########################################################DICING LARGE POLYS##################################################
     for vRec in sProviderVertices:
         start = time.time()
         print 'Dicing large polygon for ' + str(vRec) + '...'
         f.writelines('Dicing large polygon for ' + str(vRec) + '...\n')
-        #gidLargePoly.append(str(vRec[0]))
 
-        #GET EXTENT OF LARGE COVERAGE GEOMETRY
+        #get extent of large coverage geometry
         extent = """select st_extent(geom) from swat.%s
                     where gid = %s;""" % (provider,vRec[0])
         cur.execute(extent)
@@ -87,7 +84,8 @@ for provider in providerTables:
         #calculate grid size for the fishnet
         xRange = (float(extent[2])-float(extent[0]))/5
         yRange = (float(extent[3])-float(extent[1]))/5
-                                   
+        
+        #create fishnet based on extent of large polygon                           
         fishnet = """insert into swat.test_grid
                 (select st_multi(st_setsrid(st_createfishnet(5,5,%s,%s,%s,%s),4326)) as geom);""" % (xRange,yRange,extent[0],extent[1])
                     
@@ -124,11 +122,11 @@ for provider in providerTables:
                 conn.commit()
             
             maxGid = maxGid+1
-            #iGrid=iGrid+1
         
         truncate = """truncate table swat.test_grid;"""
         cur.execute(truncate)
         
+        #delete large polygon from coverage table
         deleteLargePoly = """delete from swat.%s
                                 where gid = %s;""" % (provider,vRec[0])
         cur.execute(deleteLargePoly)
@@ -142,7 +140,7 @@ for provider in providerTables:
         f.writelines(str(elapsed) + '\n')
         #print gidLargePoly
         
-    #####################################################END DICING LARGE POLYS##################################################
+#####################################################END DICING LARGE POLYS##################################################
 
     print 'Beginning overlays for ' + provider + '...'
     f.writelines('Beginning overlays for ' + provider + '...\n')
@@ -166,7 +164,7 @@ for provider in providerTables:
     cur.execute(createTable)
     conn.commit()
     
-    #create a dynamic list of coverage/states
+    #create a list of coverage/states
     sProviderState = """select s.gid, s.mkg_name, s.entity, s.protocol, b.state_fips 
                         from swat.%s s, base.state b
                             where st_intersects(s.geom, b.geom)
@@ -176,18 +174,17 @@ for provider in providerTables:
     cur.execute(sProviderState)
     sProviderState = cur.fetchall()
 
-    #create unique identifier in the csv file
+    #create unique identifier for temp table
     id=0
     f.close()
         
     for sRec in sProviderState:
-        #f = open('C:/_GEO_DATA/SWAT/mosaic/test/block_' + provider + '.csv', 'a')
         print sRec
         f = open('C:/_GEO_DATA/SWAT/mosaic/test/block_' + provider + '.txt', 'a')
         f.writelines(str(sRec) + '\n')
         #match gid from both lists to execute appropriate state
                 
-        # SELECT BLOCKS THAT ARE COVERED BY THE PROVIDER 100%
+        #select blocks that are covered by the coverage 100%
         block100 = """select b.geoid10 
                         from swat.%s s, cbpoly.block b
                         where st_contains(s.geom, b.geom)
@@ -195,7 +192,7 @@ for provider in providerTables:
                         and b.statefp10 = '%s'""" % (provider,sRec[0],sRec[4])
         #print block100
                     
-        # SELECT BLOCKS THAT ARE < 100% COVERED BY THE PROVIDER
+        #select blocks that are < 100% covered by the coverage
         blockIntersect = """select b.geoid10 
                             from swat.%s s, cbpoly.block b
                             where st_intersects(b.geom, s.geom)
@@ -213,8 +210,6 @@ for provider in providerTables:
             insert2Tmp = """insert into swat._tmp_%s
                               values (%s,'%s','%s','%s','%s',%s);""" % (provider, id, sRec[1], sRec[2], sRec[3], block, '1')
             cur.execute(insert2Tmp)
-            #f.writelines(str(id) + ', ' + str(sRec[0]) + ', ' + sRec[1] + ', ' + sRec[2] + ', ' + sRec[3] + ', ' + block + ', ' + '1\n')
-                #print providerRec + ', ' + block + ', ' + '1'
         
         conn.commit()            
             
@@ -225,18 +220,15 @@ for provider in providerTables:
             block = block[0]
             blockIntersectb.append(block)
                     
-        # GET BLOCKS THAT ONLY OVERLAP
+        #get blocks that only overlap. take the difference between st_contains and st_intersects
         blockOverlap = list(set(blockIntersectb) - set(block100b))
         print str(len(block100b)) + ' blocks are 100% covered'
         f.writelines(str(len(block100b)) + ' blocks are 100% covered \n')
         print str(len(blockOverlap)) + ' blocks are partially covered'
         f.writelines(str(len(blockOverlap)) + ' blocks are partially covered \n')
                 
-        
-                
+        #loop through each block partially covered by coverage geometry and calculate % overlap
         for block in blockOverlap:
-            #f = open('C:/_GEO_DATA/SWAT/mosaic/test/block_' + provider + '.csv', 'a')
-                    
             iOverlap = """select ST_Area(ST_Intersection(s.geom,b.geom)) /ST_Area(b.geom) FROM swat.%s s, cbpoly.block b
                             where s.gid = %s
                             and b.geoid10 = '%s'  """ % (provider,sRec[0],block)
@@ -249,7 +241,6 @@ for provider in providerTables:
             
             insert2Tmp = """insert into swat._tmp_%s
                               values (%s,'%s','%s','%s','%s',%s);""" % (provider, id, sRec[1], sRec[2], sRec[3], block, iOverlap)
-            #print insert2Agg
             cur.execute(insert2Tmp)
         f.close()
         conn.commit()
@@ -266,7 +257,6 @@ for provider in providerTables:
     cur.execute(createFinalTable)
     conn.commit()
     
-    #delete _aggtmp table
     deleteTmp = """drop table swat._tmp_%s;""" % (provider)
     cur.execute(deleteTmp)
     
@@ -275,7 +265,5 @@ for provider in providerTables:
     print provider + ' completed in ' + str(elapsed)
     f = open('C:/_GEO_DATA/SWAT/mosaic/test/block_' + provider + '.txt', 'a')
     f.writelines(provider + ' completed in ' + str(elapsed) + '\n')
-            
-            #f.writelines(str(id) + ', ' + str(sRec[0]) + ', ' + sRec[1] + ', ' + sRec[2] + ', ' + sRec[3] + ', ' + block + ', ' + iOverlap[0:8] + '\n')
-        
+
     f.close()
