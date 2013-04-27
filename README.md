@@ -39,7 +39,7 @@ Utilize Postgres/PostGIS to dice complex polygons and perform spatial overlays a
 * uses st_contains to determine 100% overlap and writes results immediately to the temp table. This was used to save processing time since st_contains already determines the blocks are covered 100%
 * uses st_intersect to determine any interaction with coverage/census blocks per state
 * the results of st_contains and st_intersects are put into python lists. Then we take the difference between the result and get a list of blocks that are partially covered
-* runs st_intersection on partially covered blocks ans st_area to determine percent overlap
+* runs st_intersection on partially covered blocks and st_area to determine percent overlap
 * creates and write results to a temp table
 * creates final output table by aggregating data from the temp table and summing the percent overlap. This is done since there may be multiple polygons overlapping the same census block
 * creates a log file of the processing status and elapsed time of certain parts of the process and how long it takes to process each coverage
